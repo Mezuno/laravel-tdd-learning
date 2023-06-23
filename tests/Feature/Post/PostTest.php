@@ -1,8 +1,9 @@
 <?php
 
-namespace Tests\Feature;
+namespace Post;
 
 use App\Models\Post;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Testing\File;
 use Illuminate\Support\Facades\Storage;
@@ -12,14 +13,16 @@ class PostTest extends TestCase
 {
     use RefreshDatabase;
 
+    /**
+     * @return void
+     */
     protected function setUp(): void
     {
         parent::setUp();
         Storage::fake('fake_storage');
     }
 
-    /** @test */
-    public function a_post_can_be_stored()
+    public function test_a_post_can_be_stored()
     {
         $this->withoutExceptionHandling();
 
@@ -31,8 +34,10 @@ class PostTest extends TestCase
             'image' => $file,
         ];
 
-        $res = $this->post('/posts', $data);
-        $res->assertOk();
+
+        $response = $this->post('/posts', $data);
+
+        $response->assertOk();
 
         $this->assertDatabaseCount('posts', 1);
 
@@ -45,30 +50,31 @@ class PostTest extends TestCase
         Storage::disk('fake_storage')->assertExists('images/' . $file->hashName());
     }
 
-    /** @test */
-    public function attribute_title_is_required_for_storing_post()
+    public function test_attribute_title_is_required_for_storing_post()
     {
         $data = [];
-        $res = $this->post('/posts', $data);
 
-        $res->assertRedirect();
-        $res->assertInvalid('title');
+        $response = $this->post('/posts', $data);
+
+        $response
+            ->assertRedirect()
+            ->assertInvalid('title');
     }
 
-    /** @test */
-    public function attribute_image_is_file_for_storing_post()
+    public function test_attribute_image_is_file_for_storing_post()
     {
         $data = [
             'image' => 'not file',
         ];
-        $res = $this->post('/posts', $data);
 
-        $res->assertRedirect();
-        $res->assertInvalid('image');
+        $response = $this->post('/posts', $data);
+
+        $response
+            ->assertRedirect()
+            ->assertInvalid('image');
     }
 
-    /** @test */
-    public function a_post_can_be_updated()
+    public function test_a_post_can_be_updated()
     {
         $this->withoutExceptionHandling();
 
@@ -82,8 +88,9 @@ class PostTest extends TestCase
             'image' => $file,
         ];
 
-        $res = $this->patch('/posts/' . $post->id, $data);
-        $res->assertOk();
+        $response = $this->patch('/posts/' . $post->id, $data);
+
+        $response->assertOk();
 
         $updatedPost = Post::first();
 
@@ -93,32 +100,58 @@ class PostTest extends TestCase
         $this->assertEquals($post->id, $updatedPost->id);
     }
 
-    /** @test */
-    public function response_for_route_posts_index_is_view_post_index_with_posts()
+    public function test_response_for_route_posts_index_is_view_post_index_with_posts()
     {
         $this->withoutExceptionHandling();
 
         $posts = Post::factory(10)->create();
 
-        $res = $this->get('/posts');
-        $res->assertViewIs('post.index');
-
         $titles = $posts->pluck('title')->toArray();
 
-        $res->assertSeeText($titles);
+        $response = $this->get('/posts');
+
+        $response
+            ->assertViewIs('post.index')
+            ->assertSeeText($titles);
     }
 
-    /** @test */
-    public function response_for_route_posts_show_is_view_post_show_with_single_post()
+    public function test_response_for_route_posts_show_is_view_post_show_with_single_post()
     {
         $this->withoutExceptionHandling();
 
         $post = Post::factory()->create();
 
-        $res = $this->get('/posts/' . $post->id);
-        $res->assertViewIs('post.show');
+        $response = $this->get('/posts/' . $post->id);
 
-        $res->assertSeeText($post->title);
+        $response
+            ->assertViewIs('post.show')
+            ->assertSeeText($post->title);
     }
 
+    public function test_a_post_can_be_deleted()
+    {
+        $this->withoutExceptionHandling();
+
+        $post = Post::factory()->create();
+        $user = User::factory()->create();
+
+        $response = $this
+            ->actingAs($user)
+            ->delete('/posts/' . $post->id);
+
+        $response->assertOk();
+
+        $this->assertDatabaseCount('posts', 0);
+    }
+
+    public function test_a_post_can_be_deleted_by_auth_user_only()
+    {
+        $post = Post::factory()->create();
+
+        $response = $this->delete('/posts/' . $post->id);
+
+        $response->assertRedirect();
+
+        $this->assertDatabaseCount('posts', 1);
+    }
 }

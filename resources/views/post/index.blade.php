@@ -1,5 +1,5 @@
 
 @foreach($posts as $post)
-    {{ $post->title }}<br>
+    {{ $post->title }}
 @endforeach
 
